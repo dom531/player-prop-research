@@ -1,0 +1,40 @@
+name: Homepage Cron Refresh
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+    - cron: '*/30 * * * *'
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh-injuries-and-schedule:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/15 * * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh injuries
+        run: |
+          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-injuries" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Refresh schedule
+        run: |
+          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-schedule" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  refresh-trends:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh trends
+        run: |
+          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-homepage-trends" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  refresh-stats:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 */6 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh stats
+        run: |
+          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-stats" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
