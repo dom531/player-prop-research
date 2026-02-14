@@ -1,0 +1,38 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Terminal-style background -->
+  <rect width="200" height="200" fill="#0a0e0a"/>
+
+  <!-- Matrix green glow -->
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%">
+      <stop offset="0%" style="stop-color:#00ff41;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#00ff41;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Glow effect -->
+  <circle cx="100" cy="100" r="80" fill="url(#glow)"/>
+
+  <!-- Player silhouette -->
+  <g fill="#00ff41" opacity="0.8">
+    <!-- Head -->
+    <circle cx="100" cy="70" r="25"/>
+
+    <!-- Body -->
+    <ellipse cx="100" cy="130" rx="35" ry="45"/>
+
+    <!-- Arms -->
+    <ellipse cx="65" cy="115" rx="12" ry="35" transform="rotate(-20 65 115)"/>
+    <ellipse cx="135" cy="115" rx="12" ry="35" transform="rotate(20 135 115)"/>
+  </g>
+
+  <!-- Terminal text -->
+  <text x="100" y="190" font-family="monospace" font-size="10" fill="#00ff41" text-anchor="middle" opacity="0.6">
+    [NO_PHOTO]
+  </text>
+
+  <!-- Scanline effect -->
+  <rect width="200" height="1" y="0" fill="#00ff41" opacity="0.1">
+    <animate attributeName="y" from="0" to="200" dur="2s" repeatCount="indefinite"/>
+  </rect>
+</svg>
