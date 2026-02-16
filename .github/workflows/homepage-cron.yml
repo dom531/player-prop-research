@@ -11,30 +11,72 @@ jobs:
   refresh-injuries-and-schedule:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/15 * * * *'
     runs-on: ubuntu-latest
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
+      - name: Validate cron secrets
+        run: |
+          if [ -z "$APP_BASE_URL" ]; then
+            echo "APP_BASE_URL is missing. Set GitHub secret APP_BASE_URL (example: https://player-prop-research-hub.vercel.app)."
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is missing. Set GitHub secret CRON_SECRET to match Vercel CRON_SECRET."
+            exit 1
+          fi
+          echo "APP_BASE_URL=${APP_BASE_URL%/}" >> "$GITHUB_ENV"
       - name: Refresh injuries
         run: |
-          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-injuries" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -sS -f -X GET "$APP_BASE_URL/api/cron/update-injuries" \
+            -H "Authorization: Bearer $CRON_SECRET"
       - name: Refresh schedule
         run: |
-          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-schedule" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -sS -f -X GET "$APP_BASE_URL/api/cron/update-schedule" \
+            -H "Authorization: Bearer $CRON_SECRET"
 
   refresh-trends:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
     runs-on: ubuntu-latest
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
+      - name: Validate cron secrets
+        run: |
+          if [ -z "$APP_BASE_URL" ]; then
+            echo "APP_BASE_URL is missing. Set GitHub secret APP_BASE_URL (example: https://player-prop-research-hub.vercel.app)."
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is missing. Set GitHub secret CRON_SECRET to match Vercel CRON_SECRET."
+            exit 1
+          fi
+          echo "APP_BASE_URL=${APP_BASE_URL%/}" >> "$GITHUB_ENV"
       - name: Refresh trends
         run: |
-          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-homepage-trends" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -sS -f -X GET "$APP_BASE_URL/api/cron/update-homepage-trends" \
+            -H "Authorization: Bearer $CRON_SECRET"
 
   refresh-stats:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 */6 * * *'
     runs-on: ubuntu-latest
+    env:
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
+      - name: Validate cron secrets
+        run: |
+          if [ -z "$APP_BASE_URL" ]; then
+            echo "APP_BASE_URL is missing. Set GitHub secret APP_BASE_URL (example: https://player-prop-research-hub.vercel.app)."
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is missing. Set GitHub secret CRON_SECRET to match Vercel CRON_SECRET."
+            exit 1
+          fi
+          echo "APP_BASE_URL=${APP_BASE_URL%/}" >> "$GITHUB_ENV"
       - name: Refresh stats
         run: |
-          curl -sS -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/update-stats" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -sS -f -X GET "$APP_BASE_URL/api/cron/update-stats" \
+            -H "Authorization: Bearer $CRON_SECRET"
