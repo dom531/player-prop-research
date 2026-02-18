@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { getPlayerResearch } from '../actions/research'
 import type { ResearchResult } from '../actions/research'
 import AnalysisDashboard from '@/components/AnalysisDashboard'
@@ -11,6 +12,8 @@ import { useToast } from '@/components/Toast'
 import HomepageNav from '@/components/HomepageNav'
 
 export default function Home() {
+  const searchParams = useSearchParams()
+  const didAutoSearch = useRef(false)
   const [playerName, setPlayerName] = useState('')
   const [propType, setPropType] = useState('points')
   const [loading, setLoading] = useState(false)
@@ -24,6 +27,19 @@ export default function Home() {
     const recent = JSON.parse(localStorage.getItem('recentSearches') || '[]')
     setRecentSearches(recent)
   }, [])
+
+  useEffect(() => {
+    if (didAutoSearch.current) return
+
+    const player = searchParams.get('player')
+    const prop = searchParams.get('prop') || 'points'
+
+    if (player) {
+      didAutoSearch.current = true
+      handleSearch(player, prop)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const handleSearch = async (name: string, type: string) => {
     setPlayerName(name)

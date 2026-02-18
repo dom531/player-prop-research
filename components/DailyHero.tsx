@@ -31,8 +31,8 @@ export default function DailyHero({ payload }: DailyHeroProps) {
             <Link href="/research" className="premium-button inline-flex items-center">
               View Research
             </Link>
-            <a href="#trends" className="inline-flex items-center border border-primary-dim px-4 py-2 text-text-secondary hover:border-primary hover:text-primary">
-              View Trends
+            <a href="#arcade" className="inline-flex items-center border border-primary-dim px-4 py-2 text-text-secondary hover:border-primary hover:text-primary">
+              View Arcade
             </a>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import HomepageNav from '@/components/HomepageNav'
 import DailyHero from '@/components/DailyHero'
-import TrendsPanel from '@/components/TrendsPanel'
+import MatchupArcade from '@/components/MatchupArcade'
 import InjuriesPanel from '@/components/InjuriesPanel'
 import SchedulePanel from '@/components/SchedulePanel'
 import { getHomepageData } from './actions/homepage'
@@ -17,13 +17,13 @@ export default async function HomePage() {
         <section className="glass-card p-4">
           <div className="flex flex-wrap items-center gap-3">
             <a href="#overview" className="stat-badge success">Overview</a>
-            <a href="#trends" className="stat-badge">Trends ({payload.trends.length})</a>
+            <a href="#arcade" className="stat-badge">Arcade ({payload.arcadeGames.length})</a>
             <a href="#injuries" className="stat-badge warning">Injuries ({payload.injuries.length})</a>
             <a href="#schedule" className="stat-badge">Schedule ({payload.schedule.length})</a>
           </div>
         </section>
         <DailyHero payload={payload} />
-        <TrendsPanel trends={payload.trends} />
+        <MatchupArcade arcadeGames={payload.arcadeGames} />
         <InjuriesPanel injuries={payload.injuries} />
         <SchedulePanel schedule={payload.schedule} />
       </div>
