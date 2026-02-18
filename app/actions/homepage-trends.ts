@@ -6,6 +6,7 @@ import type { HomepageTrendItem } from '@/types/homepage'
 const CACHE_WINDOW_MS = 15 * 60 * 1000
 const TOP_N_DEFAULT = 12
 const MIN_SAMPLE_SIZE = 5
+const MAX_EVENTS_TO_FETCH = 8
 
 const TRACKED_PLAYERS = [
   'LeBron James',
@@ -60,6 +61,7 @@ type TrendCacheRow = {
 }
 
 type OddsEvent = {
+  id?: string
   home_team: string
   away_team: string
   commence_time: string
@@ -75,6 +77,10 @@ type OddsEvent = {
       }>
     }>
   }>
+}
+
+type OddsEventSummary = {
+  id: string
 }
 
 function toTitleCase(s: string) {
@@ -189,15 +195,34 @@ async function fetchOddsBoard() {
   const apiKey = process.env.THE_ODDS_API_KEY
   if (!apiKey) return [] as OddsEvent[]
 
-  const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/odds?apiKey=${apiKey}&regions=us&markets=player_points,player_rebounds,player_assists&oddsFormat=american`
-  const response = await fetch(url, { next: { revalidate: 900 } })
-  if (!response.ok) {
-    console.error('Odds board fetch failed:', response.status)
+  const eventsUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events?apiKey=${apiKey}`
+  const eventsResponse = await fetch(eventsUrl, { next: { revalidate: 900 } })
+  if (!eventsResponse.ok) {
+    console.error('Odds events fetch failed:', eventsResponse.status)
     return [] as OddsEvent[]
   }
 
-  const json = await response.json()
-  return Array.isArray(json) ? (json as OddsEvent[]) : []
+  const eventsJson = await eventsResponse.json()
+  const events = Array.isArray(eventsJson) ? (eventsJson as OddsEventSummary[]) : []
+  const eventIds = events.slice(0, MAX_EVENTS_TO_FETCH).map((event) => event.id).filter(Boolean)
+  if (eventIds.length === 0) return [] as OddsEvent[]
+
+  const oddsResults = await Promise.allSettled(
+    eventIds.map(async (eventId) => {
+      const oddsUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events/${eventId}/odds?apiKey=${apiKey}&regions=us&markets=player_points,player_rebounds,player_assists&oddsFormat=american`
+      const oddsResponse = await fetch(oddsUrl, { next: { revalidate: 900 } })
+      if (!oddsResponse.ok) {
+        console.error('Event odds fetch failed:', oddsResponse.status, eventId)
+        return null
+      }
+      return (await oddsResponse.json()) as OddsEvent
+    })
+  )
+
+  return oddsResults
+    .filter((result): result is PromiseFulfilledResult<OddsEvent | null> => result.status === 'fulfilled')
+    .map((result) => result.value)
+    .filter((event): event is OddsEvent => Boolean(event))
 }
 
 function extractBestLines(events: OddsEvent[]) {
@@ -234,9 +259,7 @@ function extractBestLines(events: OddsEvent[]) {
             line: outcome.point,
             overOdds: outcome.price ?? 0,
             bestBook: book.title,
-            team: event.home_team.includes(playerName.split(' ').at(-1) || '')
-              ? event.home_team
-              : event.away_team,
+            team: 'NBA',
             game: {
               homeTeam: event.home_team,
               awayTeam: event.away_team,

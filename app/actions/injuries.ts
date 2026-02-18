@@ -65,30 +65,42 @@ async function fetchLiveInjuries() {
   const payload = await response.json()
   const items: InjuryItem[] = []
 
-  const rootInjuries = Array.isArray(payload?.injuries) ? payload.injuries : []
-  const teamInjuries = Array.isArray(payload?.teams)
-    ? payload.teams.flatMap((team: any) => (Array.isArray(team?.injuries) ? team.injuries : []))
-    : []
-  const nestedInjuries = Array.isArray(payload?.content?.injuries) ? payload.content.injuries : []
+  const rootEntries = Array.isArray(payload?.injuries) ? payload.injuries : []
 
-  const injuries = [...rootInjuries, ...teamInjuries, ...nestedInjuries]
-
-  for (const entry of injuries) {
-    const athlete = entry?.athlete || {}
+  const pushInjury = (entry: any, fallbackTeam?: string) => {
+    const athlete = entry?.athlete || entry?.player || {}
     const team = entry?.team || {}
     const details = Array.isArray(entry?.details) ? entry.details[0] : null
-
-    const playerName = athlete?.displayName || entry?.playerName || entry?.name
-    if (!playerName) continue
+    const playerName =
+      athlete?.displayName || entry?.playerName || entry?.name || entry?.athlete?.fullName
+    if (!playerName) return
 
     items.push({
       playerName,
-      team: team?.displayName || team?.abbreviation || 'NBA',
-      injury: details?.type || details?.description || entry?.status || 'Injury',
-      status: normalizeStatus(details?.status || entry?.status || 'unknown'),
-      updatedAt: details?.date || new Date().toISOString(),
+      team: fallbackTeam || team?.displayName || team?.abbreviation || 'NBA',
+      injury:
+        details?.type ||
+        details?.description ||
+        entry?.shortComment ||
+        entry?.longComment ||
+        'Injury',
+      status: normalizeStatus(
+        details?.status || entry?.status?.type?.description || entry?.status || 'unknown'
+      ),
+      updatedAt: details?.date || entry?.date || payload?.timestamp || new Date().toISOString(),
       source: 'ESPN',
     })
+  }
+
+  for (const entry of rootEntries) {
+    if (Array.isArray(entry?.injuries)) {
+      const teamName = entry?.displayName || entry?.team?.displayName || 'NBA'
+      for (const injury of entry.injuries) {
+        pushInjury(injury, teamName)
+      }
+      continue
+    }
+    pushInjury(entry)
   }
 
   const dedupedByPlayer = new Map<string, InjuryItem>()
