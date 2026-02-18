@@ -112,7 +112,7 @@ export default function CoachRoomPanel({ game }: CoachRoomPanelProps) {
               </div>
               <div className="mt-3">
                 <Link
-                  href={`/research?player=${encodeURIComponent(prop.playerName)}&prop=${prop.propType}`}
+                  href={`/?player=${encodeURIComponent(prop.playerName)}&prop=${prop.propType}`}
                   className="inline-flex border border-primary-dim px-3 py-1 text-xs font-mono text-text-secondary hover:border-primary hover:text-primary"
                 >
                   View Research

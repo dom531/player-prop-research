@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation'
 import { Activity, BookOpen, Home, Stethoscope } from 'lucide-react'
 
 const tabs = [
-  { label: 'Betting', href: '/', icon: Home },
-  { label: 'Research', href: '/research', icon: Activity },
+  { label: 'Research', href: '/', icon: Activity },
+  { label: 'Hub', href: '/hub', icon: Home },
   { label: 'Cheat Sheets', href: '#', icon: BookOpen, disabled: true },
   { label: 'Injuries', href: '#injuries', icon: Stethoscope, disabled: false },
 ]

@@ -28,7 +28,7 @@ export default function DailyHero({ payload }: DailyHeroProps) {
             Trends: {payload.sourceHealth.trends.toUpperCase()} | Injuries: {payload.sourceHealth.injuries.toUpperCase()} | Schedule: {payload.sourceHealth.schedule.toUpperCase()}
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link href="/research" className="premium-button inline-flex items-center">
+            <Link href="/" className="premium-button inline-flex items-center">
               View Research
             </Link>
             <a href="#arcade" className="inline-flex items-center border border-primary-dim px-4 py-2 text-text-secondary hover:border-primary hover:text-primary">

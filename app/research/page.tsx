@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getPlayerResearch } from '../actions/research'
 import type { ResearchResult } from '../actions/research'
@@ -105,7 +106,12 @@ export default function Home() {
                 [SYSTEM READY] Type player name to begin analysis...
               </p>
             </div>
-
+            <Link
+              href="/hub"
+              className="inline-flex border border-primary-dim px-4 py-2 text-xs font-mono text-text-secondary hover:border-primary hover:text-primary"
+            >
+              Go to Hub
+            </Link>
           </div>
         </div>
 
