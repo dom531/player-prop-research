@@ -56,6 +56,35 @@ export type ResearchResult = {
 }
 
 const STATS_REFRESH_THRESHOLD_MS = 72 * 60 * 60 * 1000
+const ODDS_TIMEOUT_MS = 4000
+const MATCHUP_TIMEOUT_MS = 4000
+const OPENAI_TIMEOUT_MS = 6000
+const STATS_REFRESH_TIMEOUT_MS = 8000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ])
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit | undefined,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 function getCurrentSeasonStart() {
   const now = new Date()
@@ -127,7 +156,7 @@ async function fetchLiveOdds(playerName: string, propType: string = 'points') {
 
     // Step 1: Get all upcoming games
     const gamesUrl = `https://api.the-odds-api.com/v4/sports/${sport}/events?apiKey=${apiKey}`
-    const gamesRes = await fetch(gamesUrl, { next: { revalidate: 300 } })
+    const gamesRes = await fetchWithTimeout(gamesUrl, { next: { revalidate: 300 } }, 2000)
 
     if (!gamesRes.ok) {
       console.error('Odds API games fetch failed:', gamesRes.status)
@@ -145,10 +174,10 @@ async function fetchLiveOdds(playerName: string, propType: string = 'points') {
     const lastName = playerName.split(' ').pop()?.toLowerCase() || playerName.toLowerCase()
 
     // Step 2: Search through all games for player-specific props
-    for (const game of games) {
+    for (const game of games.slice(0, 8)) {
       try {
         const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/events/${game.id}/odds?apiKey=${apiKey}&regions=us&markets=${market}`
-        const oddsRes = await fetch(oddsUrl, { next: { revalidate: 300 } })
+        const oddsRes = await fetchWithTimeout(oddsUrl, { next: { revalidate: 300 } }, 1500)
 
         if (!oddsRes.ok) continue
 
@@ -212,6 +241,7 @@ async function fetchLiveOdds(playerName: string, propType: string = 'points') {
 
 // 2. Main Action: The "Brain" (UPDATED - now handles prop types and null odds)
 export async function getPlayerResearch(playerName: string, propType: string = 'points'): Promise<ResearchResult> {
+  const timeoutNotes: string[] = []
 
   // A. Read cached stats from database
   let statsResponse = await supabase
@@ -229,7 +259,14 @@ export async function getPlayerResearch(playerName: string, propType: string = '
     console.log(`Refreshing player data for ${playerName} (missing or stale)...`)
 
     try {
-      await updatePlayerData(playerName)
+      const refreshResult = await withTimeout(
+        updatePlayerData(playerName),
+        STATS_REFRESH_TIMEOUT_MS,
+        { success: false, message: 'timeout' }
+      )
+      if (!refreshResult.success && refreshResult.message === 'timeout') {
+        timeoutNotes.push('Stats refresh timed out; using cached stats.')
+      }
 
       // Reload stats after refresh attempt
       statsResponse = await supabase
@@ -247,7 +284,12 @@ export async function getPlayerResearch(playerName: string, propType: string = '
 
   // C. Parallel fetch of odds and photo
   const [odds, playerPhoto] = await Promise.all([
-    fetchLiveOdds(playerName, propType),
+    withTimeout(fetchLiveOdds(playerName, propType), ODDS_TIMEOUT_MS, null).then((data) => {
+      if (data === null) {
+        timeoutNotes.push('Odds lookup timed out or no active market was found.')
+      }
+      return data
+    }),
     getPlayerPhoto(playerName)
   ])
 
@@ -327,7 +369,23 @@ export async function getPlayerResearch(playerName: string, propType: string = '
   let matchupInsight: MatchupInsight | undefined
   if (odds) {
     const opponent = odds.game.homeTeam // or awayTeam based on player's team
-    matchupInsight = await getMatchupData(playerName, opponent, propType)
+    const fallbackInsight: MatchupInsight = {
+      opponentRank: null,
+      defenseVsPosRank: null,
+      pace: null,
+      interpretation: 'Matchup lookup timed out'
+    }
+    const insightResult = await withTimeout(
+      getMatchupData(playerName, opponent, propType),
+      MATCHUP_TIMEOUT_MS,
+      fallbackInsight
+    )
+    if (insightResult.interpretation === fallbackInsight.interpretation) {
+      timeoutNotes.push('Matchup data timed out.')
+      matchupInsight = undefined
+    } else {
+      matchupInsight = insightResult
+    }
   }
 
   // F3. Calculate risk score
@@ -493,12 +551,19 @@ export async function getPlayerResearch(playerName: string, propType: string = '
 
   if (process.env.OPENAI_API_KEY) {
     try {
-      const { text } = await generateText({
-        model: openai('gpt-4o'),
-        system: systemPrompt,
-        prompt: userPrompt,
-        temperature: 0.2,
-      })
+      const text = await withTimeout(
+        generateText({
+          model: openai('gpt-4o'),
+          system: systemPrompt,
+          prompt: userPrompt,
+          temperature: 0.2,
+        }).then((result) => result.text),
+        OPENAI_TIMEOUT_MS,
+        ''
+      )
+      if (!text) {
+        timeoutNotes.push('AI analysis timed out.')
+      }
       analysis = text
     } catch (error) {
       console.error('OpenAI error:', error)
@@ -506,6 +571,14 @@ export async function getPlayerResearch(playerName: string, propType: string = '
     }
   } else {
     analysis = `**AI Analysis Unavailable**\n\nConfigure OPENAI_API_KEY in .env.local for AI-powered insights.\n\n**Quick Stats:**\n- Average: ${avgValue.toFixed(1)} ${propType}\n- Last 3 games: ${recentForm}`
+  }
+
+  if (!analysis.trim()) {
+    analysis = `**Research Summary**\n\n- Average: ${avgValue.toFixed(1)} ${propType}\n- Last 3 games: ${recentForm}\n- Source fallback mode was used to avoid long waits.`
+  }
+
+  if (timeoutNotes.length > 0) {
+    analysis += `\n\n**Timeout Notes**\n- ${timeoutNotes.join('\n- ')}`
   }
 
   return {

@@ -26,25 +26,25 @@ function getCurrentSeason() {
 // Refresh player cache from NBA API
 async function refreshPlayerCache() {
   try {
-    const url = `${NBA_STATS_BASE}/commonallplayers?LeagueID=00&Season=${getCurrentSeason()}&IsOnlyCurrentSeason=1`
+    const url = `${NBA_STATS_BASE}/commonallplayers?LeagueID=00&Season=${getCurrentSeason()}&IsOnlyCurrentSeason=0`
     const response = await fetch(url, { headers: NBA_HEADERS })
     const data = await response.json()
     const players = data.resultSets[0]?.rowSet || []
 
     // Transform and insert
-    const playerRecords = players.map((p: any[]) => ({
+    const playerRecords = players
+      .filter((p: any[]) => Number(p[3]) === 1)
+      .map((p: any[]) => ({
       id: String(p[0]),
       full_name: p[2],
-      team: p[7] || 'Free Agent',
+      team: p[10] || p[9] || 'FA',
       is_active: true,
       last_updated: new Date().toISOString()
     }))
 
-    // Clear old cache
-    await supabase.from('nba_players_cache').delete().neq('id', 'dummy')
-
-    // Insert new cache
-    const { error } = await supabase.from('nba_players_cache').insert(playerRecords)
+    const { error } = await supabase
+      .from('nba_players_cache')
+      .upsert(playerRecords, { onConflict: 'id' })
     if (error) throw error
 
     console.log(`✅ Refreshed player cache: ${playerRecords.length} players`)
@@ -57,16 +57,23 @@ async function refreshPlayerCache() {
 
 // Get cached player list (fast)
 export async function getPlayerList(): Promise<Array<{id: string, name: string, team: string}>> {
-  // Check if cache exists and is recent
-  const { data: existingCache, count } = await supabase
+  const { data: cachedPlayers } = await supabase
     .from('nba_players_cache')
-    .select('id, last_updated', { count: 'exact' })
-    .limit(1)
+    .select('id, full_name, team, is_active, last_updated')
+    .eq('is_active', true)
+    .order('full_name')
 
-  // Refresh if empty or older than 7 days
+  // Check if cache exists and is recent
+  const existingCache = cachedPlayers || []
+  const count = existingCache.length
+
+  // Refresh if empty or older than 24 hours
   if (!existingCache || count === 0 ||
-      (Date.now() - new Date(existingCache[0].last_updated).getTime() > 7 * 24 * 60 * 60 * 1000)) {
-    await refreshPlayerCache()
+      (Date.now() - new Date(existingCache[0].last_updated).getTime() > 24 * 60 * 60 * 1000)) {
+    const refreshed = await refreshPlayerCache()
+    if (!refreshed.success && existingCache.length > 0) {
+      return existingCache.map(p => ({ id: p.id, name: p.full_name, team: p.team }))
+    }
   }
 
   // Return cached list

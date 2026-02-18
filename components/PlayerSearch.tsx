@@ -18,6 +18,7 @@ export default function PlayerSearch({ onSearch, isLoading, recentSearches = [] 
   const [allPlayers, setAllPlayers] = React.useState<Array<{id: string, name: string, team: string}>>([])
   const [filteredPlayers, setFilteredPlayers] = React.useState<Array<{id: string, name: string, team: string}>>([])
   const [showSuggestions, setShowSuggestions] = React.useState(false)
+  const [highlightedIndex, setHighlightedIndex] = React.useState(-1)
   const [recentSearchesList, setRecentSearchesList] = React.useState<Array<{ name: string; propType: string }>>([])
 
   // Load recent searches on mount
@@ -44,12 +45,25 @@ export default function PlayerSearch({ onSearch, isLoading, recentSearches = [] 
   React.useEffect(() => {
     if (playerName.length >= 2) {
       const query = playerName.toLowerCase()
-      const matches = allPlayers.filter(p =>
-        p.name.toLowerCase().includes(query)
-      )
-      setFilteredPlayers(matches.slice(0, 10)) // Top 10 matches
+      const scored = allPlayers
+        .map((player) => {
+          const name = player.name.toLowerCase()
+          const tokens = name.split(' ')
+          let score = -1
+
+          if (name.startsWith(query)) score = 300
+          else if (tokens.some((token) => token.startsWith(query))) score = 200
+          else if (name.includes(query)) score = 100
+
+          return { player, score }
+        })
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score || a.player.name.localeCompare(b.player.name))
+      setFilteredPlayers(scored.slice(0, 12).map((entry) => entry.player))
+      setHighlightedIndex(-1)
     } else {
       setFilteredPlayers([])
+      setHighlightedIndex(-1)
     }
   }, [playerName, allPlayers])
 
@@ -96,6 +110,30 @@ export default function PlayerSearch({ onSearch, isLoading, recentSearches = [] 
               onChange={(e) => {
                 setPlayerName(e.target.value)
                 setShowSuggestions(true)
+                setHighlightedIndex(-1)
+              }}
+              onKeyDown={(e) => {
+                if (!showSuggestions || filteredPlayers.length === 0) return
+
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setHighlightedIndex((prev) => (prev + 1) % filteredPlayers.length)
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setHighlightedIndex((prev) =>
+                    prev <= 0 ? filteredPlayers.length - 1 : prev - 1
+                  )
+                } else if (e.key === 'Enter') {
+                  if (highlightedIndex >= 0 && filteredPlayers[highlightedIndex]) {
+                    e.preventDefault()
+                    const selected = filteredPlayers[highlightedIndex]
+                    setPlayerName(selected.name)
+                    setShowSuggestions(false)
+                  }
+                } else if (e.key === 'Escape') {
+                  setShowSuggestions(false)
+                  setHighlightedIndex(-1)
+                }
               }}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
@@ -115,8 +153,13 @@ export default function PlayerSearch({ onSearch, isLoading, recentSearches = [] 
                     onClick={() => {
                       setPlayerName(player.name)
                       setShowSuggestions(false)
+                      setHighlightedIndex(-1)
                     }}
-                    className="w-full px-4 py-3 text-left hover:bg-bg-tertiary border-b border-primary-dim/30 transition-colors group"
+                    className={`w-full px-4 py-3 text-left border-b border-primary-dim/30 transition-colors group ${
+                      filteredPlayers[highlightedIndex]?.id === player.id
+                        ? 'bg-bg-tertiary'
+                        : 'hover:bg-bg-tertiary'
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-text-primary font-mono group-hover:text-primary">

@@ -1,6 +1,7 @@
 'use server'
 
 import { findPlayerId } from './nba-stats'
+const MATCHUP_FETCH_TIMEOUT_MS = 2500
 
 // Get current NBA season
 function getCurrentSeason() {
@@ -38,14 +39,11 @@ export async function getMatchupData(
       }
     }
 
-    // Fetch opponent defensive ranking
-    const opponentRank = await fetchOpponentDefensiveRank(opponent, propType)
-
-    // Fetch defense vs position
-    const defenseVsPosRank = await fetchDefenseVsPosition(opponent, propType)
-
-    // Fetch pace
-    const pace = await fetchTeamPace(opponent)
+    const [opponentRank, defenseVsPosRank, pace] = await Promise.all([
+      fetchOpponentDefensiveRank(opponent, propType),
+      fetchDefenseVsPosition(opponent, propType),
+      fetchTeamPace(opponent),
+    ])
 
     // Generate interpretation
     const interpretation = generateMatchupInterpretation(
@@ -72,6 +70,24 @@ export async function getMatchupData(
   }
 }
 
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://www.nba.com/',
+        'Origin': 'https://www.nba.com'
+      },
+      next: { revalidate: 3600 },
+      signal: controller.signal
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function fetchOpponentDefensiveRank(
   team: string,
   propType: string
@@ -86,16 +102,9 @@ async function fetchOpponentDefensiveRank(
     const stat = statMap[propType] || 'DefRating'
 
     // Using NBA Stats API to get team defensive stats
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://stats.nba.com/stats/leaguedashteamstats?Conference=&DateFrom=&DateTo=&Division=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Defense&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season=${getCurrentSeason()}&SeasonSegment=&SeasonType=Regular%20Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': 'https://www.nba.com/',
-          'Origin': 'https://www.nba.com'
-        },
-        next: { revalidate: 3600 }
-      }
+      MATCHUP_FETCH_TIMEOUT_MS
     )
 
     if (!response.ok) {
@@ -132,16 +141,9 @@ async function fetchDefenseVsPosition(
 
     const targetStat = statMap[propType] || 'OPP_PTS'
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://stats.nba.com/stats/leaguedashteamstats?Conference=&DateFrom=&DateTo=&Division=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Opponent&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season=${getCurrentSeason()}&SeasonSegment=&SeasonType=Regular%20Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': 'https://www.nba.com/',
-          'Origin': 'https://www.nba.com'
-        },
-        next: { revalidate: 3600 } // Cache 1 hour
-      }
+      MATCHUP_FETCH_TIMEOUT_MS
     )
 
     if (!response.ok) return null
@@ -176,16 +178,9 @@ async function fetchDefenseVsPosition(
 
 async function fetchTeamPace(team: string): Promise<number | null> {
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://stats.nba.com/stats/leaguedashteamstats?Conference=&DateFrom=&DateTo=&Division=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Advanced&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season=${getCurrentSeason()}&SeasonSegment=&SeasonType=Regular%20Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': 'https://www.nba.com/',
-          'Origin': 'https://www.nba.com'
-        },
-        next: { revalidate: 3600 }
-      }
+      MATCHUP_FETCH_TIMEOUT_MS
     )
 
     if (!response.ok) return null

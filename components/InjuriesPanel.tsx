@@ -12,16 +12,46 @@ type InjuriesPanelProps = {
 export default function InjuriesPanel({ injuries }: InjuriesPanelProps) {
   const [sortKey, setSortKey] = useState<SortKey>('status')
   const [ascending, setAscending] = useState(true)
+  const [teamFilter, setTeamFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const teams = useMemo(() => {
+    const values = Array.from(new Set(injuries.map((item) => item.team))).sort()
+    return ['all', ...values]
+  }, [injuries])
+
+  const normalizeStatusBucket = (status: string) => {
+    const value = status.toLowerCase()
+    if (value.includes('out')) return 'out'
+    if (value.includes('doubt')) return 'doubtful'
+    if (value.includes('question')) return 'questionable'
+    if (value.includes('probable')) return 'probable'
+    if (value.includes('day')) return 'day-to-day'
+    return 'other'
+  }
 
   const sorted = useMemo(() => {
-    return [...injuries].sort((a, b) => {
+    const filtered = injuries.filter((item) => {
+      const teamMatch = teamFilter === 'all' || item.team === teamFilter
+      const statusMatch =
+        statusFilter === 'all' || normalizeStatusBucket(item.status) === statusFilter
+      const query = searchQuery.trim().toLowerCase()
+      const searchMatch =
+        query.length === 0 ||
+        item.playerName.toLowerCase().includes(query) ||
+        item.injury.toLowerCase().includes(query)
+      return teamMatch && statusMatch && searchMatch
+    })
+
+    return [...filtered].sort((a, b) => {
       const left = String(a[sortKey]).toLowerCase()
       const right = String(b[sortKey]).toLowerCase()
       if (left === right) return 0
       if (ascending) return left > right ? 1 : -1
       return left < right ? 1 : -1
     })
-  }, [injuries, sortKey, ascending])
+  }, [injuries, sortKey, ascending, teamFilter, statusFilter, searchQuery])
 
   const onSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -38,6 +68,43 @@ export default function InjuriesPanel({ injuries }: InjuriesPanelProps) {
         <h2 className="text-2xl font-bold text-primary font-mono">Injuries</h2>
         <p className="text-xs text-text-dim">NBA</p>
       </div>
+
+      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center">
+        <select
+          className="glass-input px-3 py-2"
+          value={teamFilter}
+          onChange={(e) => setTeamFilter(e.target.value)}
+        >
+          {teams.map((team) => (
+            <option key={team} value={team}>
+              {team === 'all' ? 'All Teams' : team}
+            </option>
+          ))}
+        </select>
+        <select
+          className="glass-input px-3 py-2"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="all">All Statuses</option>
+          <option value="out">Out</option>
+          <option value="doubtful">Doubtful</option>
+          <option value="questionable">Questionable</option>
+          <option value="probable">Probable</option>
+          <option value="day-to-day">Day-to-day</option>
+          <option value="other">Other</option>
+        </select>
+        <input
+          className="glass-input px-3 py-2 md:flex-1"
+          type="text"
+          placeholder="Search player or injury..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+      <p className="mb-3 text-xs text-text-dim">
+        Showing {sorted.length} of {injuries.length}
+      </p>
 
       {sorted.length === 0 ? (
         <div className="metric-card text-center text-text-secondary">
